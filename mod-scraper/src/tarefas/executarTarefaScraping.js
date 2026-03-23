@@ -1,7 +1,9 @@
+require('dotenv').config();
+
 // node mod-scraper/src/tarefas/executarTarefaScraping.js <id> --debug
 // para rodar basta criar uma tarefa válida na tabela mod_scraper.scraping_tarefas e passar o id aqui como argumento
 
-const { Pool } = require('pg');
+const pool = require('../db/pool');
 
 const {
   capturarTarifasCalendarioBooking
@@ -14,14 +16,6 @@ const {
 const {
   persistirLoteTarifas
 } = require('../persistencia/persistirLoteTarifas');
-
-const pool = new Pool({
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: Number(process.env.DB_PORT || 5432),
-  database: process.env.DB_NAME || 'gestiq',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'tn2zdogcat'
-});
 
 const STATUS = {
   PENDENTE: 'pendente',
@@ -143,6 +137,7 @@ async function marcarComoErro(client, tarefaId, erro) {
 async function executarTarefaScraping(tarefaId, opcoes = {}) {
   const debug = Boolean(opcoes.debug);
   const workerNome = opcoes.workerNome || 'execucao-manual';
+  const tarefaJaReservada = Boolean(opcoes.tarefaJaReservada);
   const client = await pool.connect();
 
   try {
@@ -151,7 +146,7 @@ async function executarTarefaScraping(tarefaId, opcoes = {}) {
       throw new Error(`Tarefa ${tarefaId} não encontrada.`);
     }
 
-    if (tarefa.status === STATUS.PROCESSANDO) {
+    if (tarefa.status === STATUS.PROCESSANDO && !tarefaJaReservada) {
       throw new Error(`Tarefa ${tarefaId} já está em processamento.`);
     }
 
@@ -162,7 +157,7 @@ async function executarTarefaScraping(tarefaId, opcoes = {}) {
     if (
       tarefa.max_tentativas != null &&
       tarefa.tentativas != null &&
-      tarefa.tentativas >= tarefa.max_tentativas
+      tarefa.tentativas > tarefa.max_tentativas
     ) {
       throw new Error(
         `Tarefa ${tarefaId} excedeu o limite de tentativas (${tarefa.max_tentativas}).`
@@ -174,7 +169,9 @@ async function executarTarefaScraping(tarefaId, opcoes = {}) {
       throw new Error(`Hotel ${tarefa.hotel_id} não encontrado.`);
     }
 
-    await marcarComoProcessando(client, tarefa.id, workerNome);
+    if (!tarefaJaReservada) {
+      await marcarComoProcessando(client, tarefa.id, workerNome);
+    }
 
     const urlConsulta = montarUrlConsultaBooking(hotel.url_booking, tarefa);
 
@@ -191,7 +188,8 @@ async function executarTarefaScraping(tarefaId, opcoes = {}) {
         criancas: tarefa.criancas,
         quantidade_noites: tarefa.quantidade_noites,
         fonte: tarefa.fonte,
-        status: tarefa.status
+        status: tarefa.status,
+        tarefaJaReservada
       });
 
       console.log('[executor] URL final:', urlConsulta);
@@ -228,10 +226,7 @@ async function executarTarefaScraping(tarefaId, opcoes = {}) {
 
     if (debug) {
       console.log('[executor] tarifas transformadas:', tarifas.length);
-      console.log(
-        '[executor] amostra tarifa:',
-        tarifas[0] || null
-      );
+      console.log('[executor] amostra tarifa:', tarifas[0] || null);
     }
 
     const resumoPersistencia = await persistirLoteTarifas(client, tarifas);

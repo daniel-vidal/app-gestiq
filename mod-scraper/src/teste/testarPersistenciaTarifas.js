@@ -1,9 +1,11 @@
 // src/teste/testarPersistenciaTarifas.js
 
+require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
 
+const pool = require('../db/pool');
 const { persistirLoteTarifas } = require('../persistencia/persistirLoteTarifas');
 
 function carregarJson(caminhoArquivo) {
@@ -13,16 +15,6 @@ function carregarJson(caminhoArquivo) {
 
   const conteudo = fs.readFileSync(caminhoArquivo, 'utf8');
   return JSON.parse(conteudo);
-}
-
-function criarPool() {
-  return new Pool({
-    host: process.env.PGHOST || '127.0.0.1',
-    port: Number(process.env.PGPORT || 5432),
-    database: process.env.PGDATABASE || 'gestiq',
-    user: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || 'tn2zdogcat'
-  });
 }
 
 async function mostrarAmostraBanco(client, tarifas) {
@@ -69,7 +61,6 @@ async function mostrarAmostraBanco(client, tarifas) {
 }
 
 (async () => {
-  const pool = criarPool();
   const client = await pool.connect();
 
   try {
@@ -82,7 +73,7 @@ async function mostrarAmostraBanco(client, tarifas) {
 
     const tarifasOriginais = carregarJson(caminhoJson);
 
-    const HOTEL_ID_TESTE = 1; // troque se necessário por um hotel real existente
+    const HOTEL_ID_TESTE = 1;
     const REGIAO_ID_TESTE = null;
 
     const tarifas = tarifasOriginais.map((t) => ({
