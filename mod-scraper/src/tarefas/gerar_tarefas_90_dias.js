@@ -1,9 +1,14 @@
+// Criar tarefas de monitoramento mensal para os próximos 90 dias, considerando os hotéis ativos e suas prioridades.
+// Para rodar agora: `node src/tarefas/gerar_tarefas_90_dias.js --debug`
+// Para rodar agendado para uma data futura: `node src/tarefas/gerar_tarefas_90_dias.js --debug --agendada-para="2026-03-24 06:00:00"`
+
 require('dotenv').config();
 
 const pool = require('../db/pool');
 
 function adicionarDias(data, dias) {
   const nova = new Date(data);
+  nova.setHours(12, 0, 0, 0);
   nova.setDate(nova.getDate() + dias);
   return nova;
 }
@@ -16,7 +21,7 @@ function formatarDataISO(data) {
 }
 
 function primeiroDiaDoMes(data) {
-  return new Date(data.getFullYear(), data.getMonth(), 1);
+  return new Date(data.getFullYear(), data.getMonth(), 1, 12, 0, 0, 0);
 }
 
 function obterMesesNoIntervalo(dataInicio, quantidadeDias) {
@@ -24,14 +29,13 @@ function obterMesesNoIntervalo(dataInicio, quantidadeDias) {
 
   for (let i = 0; i < quantidadeDias; i++) {
     const data = adicionarDias(dataInicio, i);
-    const primeiroDia = primeiroDiaDoMes(data);
-    const chave = formatarDataISO(primeiroDia);
+    const inicioMes = primeiroDiaDoMes(data);
+    const chave = formatarDataISO(inicioMes);
 
     if (!meses.has(chave)) {
       meses.set(chave, {
         mes_referencia: chave,
-        checkin_consulta: formatarDataISO(primeiroDia),
-        checkout_consulta: formatarDataISO(adicionarDias(primeiroDia, 1))
+        checkin_consulta: chave
       });
     }
   }
@@ -39,6 +43,35 @@ function obterMesesNoIntervalo(dataInicio, quantidadeDias) {
   return Array.from(meses.values()).sort((a, b) =>
     a.mes_referencia.localeCompare(b.mes_referencia)
   );
+}
+
+function obterArgumento(nome) {
+  const prefixo = `${nome}=`;
+  const arg = process.argv.find((item) => item.startsWith(prefixo));
+  return arg ? arg.slice(prefixo.length) : null;
+}
+
+function agoraNormalizadoParaMinuto() {
+  const data = new Date();
+  data.setSeconds(0, 0);
+  return data;
+}
+
+function normalizarAgendadaPara(valor) {
+  if (!valor) return null;
+
+  const texto = String(valor).trim();
+  const ajustado = texto.includes(' ') ? texto.replace(' ', 'T') : texto;
+  const data = new Date(ajustado);
+
+  if (Number.isNaN(data.getTime())) {
+    throw new Error(`Data inválida para --agendada-para: ${valor}`);
+  }
+
+  // normaliza para minuto cheio
+  data.setSeconds(0, 0);
+
+  return data;
 }
 
 async function buscarHoteisAtivos(client) {
@@ -82,8 +115,21 @@ async function inserirTarefa(client, tarefa) {
       payload
     )
     VALUES (
-      $1, $2, $3, $4, $5::date, $6::date, $7::date,
-      $8, $9, $10, $11, $12, $13, $14, $15::jsonb
+      $1,
+      $2,
+      $3,
+      $4,
+      $5::date,
+      $6::date,
+      $7::date,
+      $8,
+      $9,
+      $10,
+      $11,
+      $12,
+      $13,
+      $14,
+      $15::jsonb
     )
     ON CONFLICT DO NOTHING
     RETURNING id
@@ -104,7 +150,7 @@ async function inserirTarefa(client, tarefa) {
     tarefa.prioridade,
     tarefa.status,
     tarefa.agendada_para,
-    JSON.stringify(tarefa.payload)
+    JSON.stringify(tarefa.payload || {})
   ];
 
   const { rows } = await client.query(sql, values);
@@ -114,9 +160,15 @@ async function inserirTarefa(client, tarefa) {
 async function gerarTarefas90Dias(opcoes = {}) {
   const client = await pool.connect();
 
-  const hoje = opcoes.dataBase ? new Date(opcoes.dataBase) : new Date();
-  const quantidadeDias = Number(opcoes.quantidadeDias || 90);
+  const agendadaPara = opcoes.agendadaPara || agoraNormalizadoParaMinuto();
 
+  const baseData = opcoes.dataBase
+    ? new Date(opcoes.dataBase)
+    : (opcoes.agendadaPara ? new Date(opcoes.agendadaPara) : new Date());
+
+  baseData.setHours(12, 0, 0, 0);
+
+  const quantidadeDias = Number(opcoes.quantidadeDias ?? 90);
   const adultos = Number(opcoes.adultos ?? 2);
   const criancas = Number(opcoes.criancas ?? 0);
   const quantidadeNoites = Number(opcoes.quantidadeNoites ?? 1);
@@ -128,7 +180,7 @@ async function gerarTarefas90Dias(opcoes = {}) {
 
   try {
     const hoteis = await buscarHoteisAtivos(client);
-    const meses = obterMesesNoIntervalo(hoje, quantidadeDias);
+    const meses = obterMesesNoIntervalo(baseData, quantidadeDias);
 
     let totalTentadas = 0;
     let totalCriadas = 0;
@@ -137,13 +189,18 @@ async function gerarTarefas90Dias(opcoes = {}) {
     const detalhes = [];
 
     if (debug) {
-      console.log('[gerador] Hotéis ativos:', hoteis.length);
-      console.log('[gerador] Meses encontrados:', meses);
+      console.log('[gerador] hotéis ativos:', hoteis.length);
+      console.log('[gerador] meses:', meses);
+      console.log('[gerador] agendadaPara:', agendadaPara.toISOString());
+      console.log('[gerador] dataBase:', formatarDataISO(baseData));
     }
 
     for (const hotel of hoteis) {
       for (const mes of meses) {
         totalTentadas += 1;
+
+        const checkinDate = new Date(`${mes.checkin_consulta}T12:00:00`);
+        const checkoutDate = adicionarDias(checkinDate, quantidadeNoites);
 
         const prioridadeBase = Number(hotel.prioridade_monitoramento || 5);
         const prioridade = hotel.hotel_base
@@ -157,22 +214,27 @@ async function gerarTarefas90Dias(opcoes = {}) {
           regiao_id: hotel.regiao_id,
           mes_referencia: mes.mes_referencia,
           checkin_consulta: mes.checkin_consulta,
-          checkout_consulta: formatarDataISO(
-            adicionarDias(new Date(mes.checkin_consulta), quantidadeNoites)
-          ),
+          checkout_consulta: formatarDataISO(checkoutDate),
           adultos,
           criancas,
           quantidade_noites: quantidadeNoites,
           fonte,
           prioridade,
           status,
-          agendada_para: new Date().toISOString(),
+          agendada_para: agendadaPara,
           payload: {
             origem: 'gerar_tarefas_90_dias',
+            versao: 5,
             hotel_nome: hotel.nome,
+            hotel_base: Boolean(hotel.hotel_base),
+            prioridade_hotel_original: prioridadeBase,
             periodo_dias: quantidadeDias,
-            data_base: formatarDataISO(hoje),
-            hotel_base: Boolean(hotel.hotel_base)
+            data_base: formatarDataISO(baseData),
+            adultos,
+            criancas,
+            quantidade_noites: quantidadeNoites,
+            fonte,
+            agendada_para_normalizada: agendadaPara.toISOString()
           }
         };
 
@@ -180,31 +242,45 @@ async function gerarTarefas90Dias(opcoes = {}) {
 
         if (inserida) {
           totalCriadas += 1;
-          detalhes.push({
-            acao: 'criada',
-            tarefa_id: inserida.id,
-            hotel_id: hotel.id,
-            hotel_nome: hotel.nome,
-            mes_referencia: mes.mes_referencia
-          });
+
+          if (debug) {
+            detalhes.push({
+              acao: 'criada',
+              tarefa_id: inserida.id,
+              hotel_id: hotel.id,
+              hotel_nome: hotel.nome,
+              mes_referencia: tarefa.mes_referencia,
+              checkin_consulta: tarefa.checkin_consulta,
+              checkout_consulta: tarefa.checkout_consulta,
+              prioridade: tarefa.prioridade,
+              agendada_para: tarefa.agendada_para.toISOString()
+            });
+          }
         } else {
           totalIgnoradas += 1;
-          detalhes.push({
-            acao: 'ignorada_duplicada',
-            hotel_id: hotel.id,
-            hotel_nome: hotel.nome,
-            mes_referencia: mes.mes_referencia
-          });
+
+          if (debug) {
+            detalhes.push({
+              acao: 'ignorada_duplicada',
+              hotel_id: hotel.id,
+              hotel_nome: hotel.nome,
+              mes_referencia: tarefa.mes_referencia,
+              checkin_consulta: tarefa.checkin_consulta,
+              checkout_consulta: tarefa.checkout_consulta,
+              agendada_para: tarefa.agendada_para.toISOString()
+            });
+          }
         }
       }
     }
 
     return {
       ok: true,
-      data_base: formatarDataISO(hoje),
+      data_base: formatarDataISO(baseData),
       quantidade_dias: quantidadeDias,
       hoteis_ativos: hoteis.length,
       meses_processados: meses.length,
+      agendada_para: agendadaPara.toISOString(),
       total_tentadas: totalTentadas,
       total_criadas: totalCriadas,
       total_ignoradas: totalIgnoradas,
@@ -222,9 +298,12 @@ module.exports = {
 if (require.main === module) {
   (async () => {
     const debug = process.argv.includes('--debug');
+    const agendadaParaArg = obterArgumento('--agendada-para');
+    const agendadaPara = normalizarAgendadaPara(agendadaParaArg);
 
     const resultado = await gerarTarefas90Dias({
-      debug
+      debug,
+      agendadaPara
     });
 
     console.log(JSON.stringify(resultado, null, 2));
