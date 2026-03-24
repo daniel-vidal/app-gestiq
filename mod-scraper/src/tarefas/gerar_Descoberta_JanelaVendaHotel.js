@@ -1,5 +1,3 @@
-// node mod-scraper/src/tarefas/gerar_Descoberta_JanelaVendaHotel.js --hotel-id=1 --debug
-
 require('dotenv').config();
 
 const pool = require('../db/pool');
@@ -36,6 +34,30 @@ function formatarMesISO(data) {
   const ano = data.getFullYear();
   const mes = String(data.getMonth() + 1).padStart(2, '0');
   return `${ano}-${mes}`;
+}
+
+function primeiroDiaDoMes(data) {
+  return new Date(data.getFullYear(), data.getMonth(), 1, 12, 0, 0, 0);
+}
+
+function construirConsultaMes(dataMes, dataBase, quantidadeNoites) {
+  const primeiroMes = primeiroDiaDoMes(dataMes);
+
+  const base = new Date(dataBase);
+  base.setHours(12, 0, 0, 0);
+
+  const mesmoMesEAno =
+    primeiroMes.getFullYear() === base.getFullYear() &&
+    primeiroMes.getMonth() === base.getMonth();
+
+  const checkinDate = mesmoMesEAno ? new Date(base) : new Date(primeiroMes);
+  const checkoutDate = adicionarDias(checkinDate, quantidadeNoites);
+
+  return {
+    mes_referencia: formatarDataISO(primeiroMes),
+    checkin_consulta: formatarDataISO(checkinDate),
+    checkout_consulta: formatarDataISO(checkoutDate)
+  };
 }
 
 async function buscarConfiguracao(client, chave, valorPadrao = null) {
@@ -140,25 +162,22 @@ async function gerarDescobertaJanelaVendaHotel({ hotelId, debug = false }) {
     );
 
     const baseData = new Date();
-    baseData.setDate(1);
     baseData.setHours(12, 0, 0, 0);
 
     const resultados = [];
 
     for (let i = 0; i < horizonteMeses; i++) {
       const dataMes = adicionarMeses(baseData, i);
-
-      const checkin = formatarDataISO(dataMes);
-      const checkout = formatarDataISO(adicionarDias(dataMes, 1));
+      const consultaMes = construirConsultaMes(dataMes, baseData, 1);
 
       const tarefa = {
         tipo_tarefa: 'descoberta_janela_venda',
         tipo_coleta: 'calendario_mensal',
         hotel_id: hotel.id,
         regiao_id: hotel.regiao_id,
-        mes_referencia: new Date(`${formatarMesISO(dataMes)}-01T12:00:00`),
-        checkin_consulta: new Date(`${checkin}T12:00:00`),
-        checkout_consulta: new Date(`${checkout}T12:00:00`),
+        mes_referencia: new Date(`${consultaMes.mes_referencia}T12:00:00`),
+        checkin_consulta: new Date(`${consultaMes.checkin_consulta}T12:00:00`),
+        checkout_consulta: new Date(`${consultaMes.checkout_consulta}T12:00:00`),
         adultos,
         criancas,
         quantidade_noites: 1,
@@ -166,7 +185,9 @@ async function gerarDescobertaJanelaVendaHotel({ hotelId, debug = false }) {
         prioridade: 1,
         payload: {
           origem: 'descoberta_janela_venda',
-          mes_ref: formatarMesISO(dataMes)
+          versao: 2,
+          mes_ref: formatarMesISO(dataMes),
+          data_base: formatarDataISO(baseData)
         }
       };
 
@@ -174,6 +195,9 @@ async function gerarDescobertaJanelaVendaHotel({ hotelId, debug = false }) {
 
       resultados.push({
         mes: formatarMesISO(dataMes),
+        mes_referencia: consultaMes.mes_referencia,
+        checkin_consulta: consultaMes.checkin_consulta,
+        checkout_consulta: consultaMes.checkout_consulta,
         ...resultado
       });
     }

@@ -1,6 +1,6 @@
 // Criar tarefas de monitoramento mensal para os próximos 90 dias, considerando os hotéis ativos e suas prioridades.
-// Para rodar agora: `node src/tarefas/gerar_tarefas_90_dias.js --debug`
-// Para rodar agendado para uma data futura: `node src/tarefas/gerar_tarefas_90_dias.js --debug --agendada-para="2026-03-24 06:00:00"`
+// Para rodar agora: `node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --debug`
+// Para rodar agendado para uma data futura: `node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --debug --agendada-para="2026-03-24 06:00:00"`
 
 require('dotenv').config();
 
@@ -34,8 +34,7 @@ function obterMesesNoIntervalo(dataInicio, quantidadeDias) {
 
     if (!meses.has(chave)) {
       meses.set(chave, {
-        mes_referencia: chave,
-        checkin_consulta: chave
+        mes_referencia: chave
       });
     }
   }
@@ -68,10 +67,28 @@ function normalizarAgendadaPara(valor) {
     throw new Error(`Data inválida para --agendada-para: ${valor}`);
   }
 
-  // normaliza para minuto cheio
   data.setSeconds(0, 0);
-
   return data;
+}
+
+function construirConsultaMes(dataMes, dataBase, quantidadeNoites) {
+  const primeiroMes = primeiroDiaDoMes(dataMes);
+
+  const base = new Date(dataBase);
+  base.setHours(12, 0, 0, 0);
+
+  const mesmoMesEAno =
+    primeiroMes.getFullYear() === base.getFullYear() &&
+    primeiroMes.getMonth() === base.getMonth();
+
+  const checkinDate = mesmoMesEAno ? new Date(base) : new Date(primeiroMes);
+  const checkoutDate = adicionarDias(checkinDate, quantidadeNoites);
+
+  return {
+    mes_referencia: formatarDataISO(primeiroMes),
+    checkin_consulta: formatarDataISO(checkinDate),
+    checkout_consulta: formatarDataISO(checkoutDate)
+  };
 }
 
 async function buscarHoteisAtivos(client) {
@@ -199,8 +216,8 @@ async function gerarTarefas90Dias(opcoes = {}) {
       for (const mes of meses) {
         totalTentadas += 1;
 
-        const checkinDate = new Date(`${mes.checkin_consulta}T12:00:00`);
-        const checkoutDate = adicionarDias(checkinDate, quantidadeNoites);
+        const dataMes = new Date(`${mes.mes_referencia}T12:00:00`);
+        const consultaMes = construirConsultaMes(dataMes, baseData, quantidadeNoites);
 
         const prioridadeBase = Number(hotel.prioridade_monitoramento || 5);
         const prioridade = hotel.hotel_base
@@ -212,9 +229,9 @@ async function gerarTarefas90Dias(opcoes = {}) {
           tipo_coleta: tipoColeta,
           hotel_id: hotel.id,
           regiao_id: hotel.regiao_id,
-          mes_referencia: mes.mes_referencia,
-          checkin_consulta: mes.checkin_consulta,
-          checkout_consulta: formatarDataISO(checkoutDate),
+          mes_referencia: consultaMes.mes_referencia,
+          checkin_consulta: consultaMes.checkin_consulta,
+          checkout_consulta: consultaMes.checkout_consulta,
           adultos,
           criancas,
           quantidade_noites: quantidadeNoites,
@@ -224,7 +241,7 @@ async function gerarTarefas90Dias(opcoes = {}) {
           agendada_para: agendadaPara,
           payload: {
             origem: 'gerar_tarefas_90_dias',
-            versao: 5,
+            versao: 6,
             hotel_nome: hotel.nome,
             hotel_base: Boolean(hotel.hotel_base),
             prioridade_hotel_original: prioridadeBase,
