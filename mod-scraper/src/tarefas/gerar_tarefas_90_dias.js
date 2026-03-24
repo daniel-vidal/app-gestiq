@@ -1,6 +1,7 @@
 // Criar tarefas de monitoramento mensal para os próximos 90 dias, considerando os hotéis ativos e suas prioridades.
 // Para rodar agora: `node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --debug`
 // Para rodar agendado para uma data futura: `node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --debug --agendada-para="2026-03-24 06:00:00"`
+// Para rodar para um hotel específico: `node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --hotel-id=1 --debug`
 
 require('dotenv').config();
 
@@ -91,8 +92,8 @@ function construirConsultaMes(dataMes, dataBase, quantidadeNoites) {
   };
 }
 
-async function buscarHoteisAtivos(client) {
-  const sql = `
+async function buscarHoteisAtivos(client, hotelId = null) {
+  let sql = `
     SELECT
       id,
       nome,
@@ -102,13 +103,23 @@ async function buscarHoteisAtivos(client) {
       ativo
     FROM mod_scraper.hoteis_monitorados
     WHERE ativo = TRUE
+  `;
+
+  const params = [];
+
+  if (hotelId) {
+    sql += ` AND id = $1`;
+    params.push(hotelId);
+  }
+
+  sql += `
     ORDER BY
       prioridade_monitoramento ASC,
       hotel_base DESC,
       id ASC
   `;
 
-  const { rows } = await client.query(sql);
+  const { rows } = await client.query(sql, params);
   return rows;
 }
 
@@ -196,7 +207,7 @@ async function gerarTarefas90Dias(opcoes = {}) {
   const debug = Boolean(opcoes.debug);
 
   try {
-    const hoteis = await buscarHoteisAtivos(client);
+    const hoteis = await buscarHoteisAtivos(client, opcoes.hotelId);
     const meses = obterMesesNoIntervalo(baseData, quantidadeDias);
 
     let totalTentadas = 0;
@@ -210,6 +221,7 @@ async function gerarTarefas90Dias(opcoes = {}) {
       console.log('[gerador] meses:', meses);
       console.log('[gerador] agendadaPara:', agendadaPara.toISOString());
       console.log('[gerador] dataBase:', formatarDataISO(baseData));
+      console.log('[gerador] hotelId filtro:', opcoes.hotelId || null);
     }
 
     for (const hotel of hoteis) {
@@ -317,10 +329,13 @@ if (require.main === module) {
     const debug = process.argv.includes('--debug');
     const agendadaParaArg = obterArgumento('--agendada-para');
     const agendadaPara = normalizarAgendadaPara(agendadaParaArg);
+    const hotelIdArg = obterArgumento('--hotel-id');
+    const hotelId = hotelIdArg ? Number(hotelIdArg) : null;
 
     const resultado = await gerarTarefas90Dias({
       debug,
-      agendadaPara
+      agendadaPara,
+      hotelId
     });
 
     console.log(JSON.stringify(resultado, null, 2));

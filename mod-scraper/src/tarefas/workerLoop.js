@@ -1,3 +1,5 @@
+// node mod-scraper/src/tarefas/workerLoop.js
+
 require('dotenv').config();
 
 const { runnerUmaTarefa } = require('./runnerUmaTarefa');

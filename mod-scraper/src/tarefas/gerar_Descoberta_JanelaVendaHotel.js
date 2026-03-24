@@ -1,3 +1,6 @@
+// node mod-scraper/src/tarefas/gerar_Descoberta_JanelaVendaHotel.js --hotel-id=1 --debug
+// node mod-scraper/src/tarefas/gerar_Descoberta_JanelaVendaHotel.js --debug
+
 require('dotenv').config();
 
 const pool = require('../db/pool');
@@ -73,7 +76,11 @@ async function buscarConfiguracao(client, chave, valorPadrao = null) {
 
 async function buscarHotelPorId(client, hotelId) {
   const sql = `
-    SELECT id, nome, regiao_id, ativo
+    SELECT
+      id,
+      nome,
+      regiao_id,
+      ativo
     FROM mod_scraper.hoteis_monitorados
     WHERE id = $1
     LIMIT 1
@@ -102,7 +109,8 @@ async function inserirTarefa(client, tarefa, debug = false) {
       payload
     )
     VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pendente',NOW(),$13::jsonb
+      $1, $2, $3, $4, $5::date, $6::date, $7::date,
+      $8, $9, $10, $11, $12, 'pendente', NOW(), $13::jsonb
     )
     ON CONFLICT DO NOTHING
     RETURNING id
@@ -127,7 +135,9 @@ async function inserirTarefa(client, tarefa, debug = false) {
   const { rows } = await client.query(sql, values);
 
   if (rows.length === 0) {
-    if (debug) console.log('[tarefa] ignorada (duplicada)');
+    if (debug) {
+      console.log('[descoberta] tarefa ignorada (duplicada)');
+    }
     return { acao: 'ignorada_duplicada' };
   }
 
@@ -138,9 +148,14 @@ async function gerarDescobertaJanelaVendaHotel({ hotelId, debug = false }) {
   const client = await pool.connect();
 
   try {
-    const hotel = await buscarHotelPorId(client, hotelId);
+    const hotelIdNum = Number(hotelId);
+    if (!hotelIdNum || Number.isNaN(hotelIdNum)) {
+      throw new Error('Informe um --hotel-id válido.');
+    }
+
+    const hotel = await buscarHotelPorId(client, hotelIdNum);
     if (!hotel) {
-      throw new Error(`Hotel ${hotelId} não encontrado`);
+      throw new Error(`Hotel ${hotelIdNum} não encontrado`);
     }
 
     const horizonteMeses = Number(
@@ -166,6 +181,17 @@ async function gerarDescobertaJanelaVendaHotel({ hotelId, debug = false }) {
 
     const resultados = [];
 
+    if (debug) {
+      console.log('[descoberta] hotel:', {
+        id: hotel.id,
+        nome: hotel.nome,
+        regiao_id: hotel.regiao_id,
+        ativo: hotel.ativo
+      });
+      console.log('[descoberta] horizonte_meses:', horizonteMeses);
+      console.log('[descoberta] baseData:', formatarDataISO(baseData));
+    }
+
     for (let i = 0; i < horizonteMeses; i++) {
       const dataMes = adicionarMeses(baseData, i);
       const consultaMes = construirConsultaMes(dataMes, baseData, 1);
@@ -175,9 +201,9 @@ async function gerarDescobertaJanelaVendaHotel({ hotelId, debug = false }) {
         tipo_coleta: 'calendario_mensal',
         hotel_id: hotel.id,
         regiao_id: hotel.regiao_id,
-        mes_referencia: new Date(`${consultaMes.mes_referencia}T12:00:00`),
-        checkin_consulta: new Date(`${consultaMes.checkin_consulta}T12:00:00`),
-        checkout_consulta: new Date(`${consultaMes.checkout_consulta}T12:00:00`),
+        mes_referencia: consultaMes.mes_referencia,
+        checkin_consulta: consultaMes.checkin_consulta,
+        checkout_consulta: consultaMes.checkout_consulta,
         adultos,
         criancas,
         quantidade_noites: 1,
@@ -185,9 +211,11 @@ async function gerarDescobertaJanelaVendaHotel({ hotelId, debug = false }) {
         prioridade: 1,
         payload: {
           origem: 'descoberta_janela_venda',
-          versao: 2,
+          versao: 3,
+          hotel_nome: hotel.nome,
+          data_base: formatarDataISO(baseData),
           mes_ref: formatarMesISO(dataMes),
-          data_base: formatarDataISO(baseData)
+          horizonte_meses: horizonteMeses
         }
       };
 
@@ -202,11 +230,16 @@ async function gerarDescobertaJanelaVendaHotel({ hotelId, debug = false }) {
       });
     }
 
+    const criadas = resultados.filter((r) => r.acao === 'criada').length;
+    const ignoradas = resultados.filter((r) => r.acao === 'ignorada_duplicada').length;
+
     return {
       ok: true,
       hotel_id: hotel.id,
       hotel_nome: hotel.nome,
       horizonte_meses: horizonteMeses,
+      total_criadas: criadas,
+      total_ignoradas: ignoradas,
       resultados
     };
   } finally {
@@ -229,7 +262,7 @@ if (require.main === module) {
     });
 
     console.log(JSON.stringify(resultado, null, 2));
-    process.exit(0);
+    process.exit(resultado.ok ? 0 : 1);
   })().catch((err) => {
     console.error(err);
     process.exit(1);
