@@ -54,8 +54,8 @@ function extrairDataIsoCurta(valor) {
   if (!valor) return null;
 
   const texto = String(valor).trim();
-  const matchIsoCurta = texto.match(/^(\d{4}-\d{2}-\d{2})/);
 
+  const matchIsoCurta = texto.match(/^(\d{4}-\d{2}-\d{2})/);
   if (matchIsoCurta) {
     return matchIsoCurta[1];
   }
@@ -294,63 +294,19 @@ async function capturarTarifasCalendarioBooking(url, opts = {}) {
       throw new Error('Não foi possível abrir/hidratar o calendário com preços');
     }
 
-    await page.waitForFunction(() => {
-      function elementoVisivel(el) {
-        if (!el) return false;
-        const style = window.getComputedStyle(el);
-        if (
-          style.display === 'none' ||
-          style.visibility === 'hidden' ||
-          Number(style.opacity) === 0
-        ) {
-          return false;
-        }
-        const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
-      }
-
-      const calendarios = Array.from(document.querySelectorAll('.bui-calendar'));
-      const calendarioVisivel = calendarios.find(elementoVisivel) || calendarios[0];
-      if (!calendarioVisivel) return false;
-
-      const tds = calendarioVisivel.querySelectorAll('td[data-bui-ref="calendar-date"][data-date]');
-      return tds.length > 0;
-    }, { timeout: 20000 });
+    await page.waitForSelector(
+      '.bui-calendar td[data-bui-ref="calendar-date"][data-date]',
+      { timeout: 20000 }
+    );
 
     if (debug) {
-      const diagnostico = await page.evaluate(() => {
-        function elementoVisivel(el) {
-          if (!el) return false;
-
-          const style = window.getComputedStyle(el);
-          if (
-            style.display === 'none' ||
-            style.visibility === 'hidden' ||
-            Number(style.opacity) === 0
-          ) {
-            return false;
-          }
-
-          const rect = el.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0;
-        }
-
-        const calendarios = Array.from(document.querySelectorAll('.bui-calendar'));
-        const calendarioVisivel = calendarios.find(elementoVisivel) || calendarios[0] || null;
-
-        return {
-          urlAtual: location.href,
-          titulo: document.title,
-          qtdCalendarios: calendarios.length,
-          temCalendarioVisivel: !!calendarioVisivel,
-          qtdDatasCalendarioVisivel: calendarioVisivel
-            ? calendarioVisivel.querySelectorAll('td[data-bui-ref="calendar-date"][data-date]').length
-            : 0,
-          qtdPrecosCalendarioVisivel: calendarioVisivel
-            ? calendarioVisivel.querySelectorAll('.calendar-day__price').length
-            : 0
-        };
-      });
+      const diagnostico = await page.evaluate(() => ({
+        urlAtual: location.href,
+        titulo: document.title,
+        temCalendario: !!document.querySelector('.bui-calendar'),
+        qtdDatas: document.querySelectorAll('.bui-calendar td[data-bui-ref="calendar-date"][data-date]').length,
+        qtdPrecos: document.querySelectorAll('.bui-calendar .calendar-day__price').length
+      }));
 
       console.log('Diagnóstico:', JSON.stringify(diagnostico, null, 2));
     }
@@ -385,93 +341,55 @@ async function capturarTarifasCalendarioBooking(url, opts = {}) {
 
     if (debug) {
       try {
-        const amostraTd = await page.evaluate(() => {
-          function elementoVisivel(el) {
-            if (!el) return false;
-
-            const style = window.getComputedStyle(el);
-            if (
-              style.display === 'none' ||
-              style.visibility === 'hidden' ||
-              Number(style.opacity) === 0
-            ) {
-              return false;
-            }
-
-            const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
-          }
-
-          const calendarios = Array.from(document.querySelectorAll('.bui-calendar'));
-          const calendarioVisivel = calendarios.find(elementoVisivel) || calendarios[0] || null;
-          if (!calendarioVisivel) return null;
-
-          const td = calendarioVisivel.querySelector('td[data-bui-ref="calendar-date"][data-date]');
-          if (!td) return null;
-
-          return {
+        const amostraTd = await page.$eval(
+          '.bui-calendar td[data-bui-ref="calendar-date"][data-date]',
+          (td) => ({
             outerHTML: td.outerHTML,
             dia: td.querySelector('.calendar-day__number')?.textContent || null,
             valor: td.querySelector('.calendar-day__price')?.textContent || null
-          };
-        });
-
+          })
+        );
         console.log('Amostra TD real:', JSON.stringify(amostraTd, null, 2));
       } catch (e) {
         console.warn('Falha ao obter amostra TD real:', e.message);
       }
     }
 
-    const calendario = await page.evaluate(() => {
-      function elementoVisivel(el) {
-        if (!el) return false;
+    const calendario = await page.$$eval(
+      '.bui-calendar td[data-bui-ref="calendar-date"][data-date]',
+      (tds) => {
+        return tds.map((td) => {
+          const data = td.getAttribute('data-date') || null;
 
-        const style = window.getComputedStyle(el);
-        if (
-          style.display === 'none' ||
-          style.visibility === 'hidden' ||
-          Number(style.opacity) === 0
-        ) {
-          return false;
-        }
+          const diaRaw =
+            td.querySelector('.calendar-day__number')?.textContent || '';
 
-        const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
+          const valorRaw =
+            td.querySelector('.calendar-day__price')?.textContent || '';
+
+          const dia = parseInt(diaRaw.replace(/[^\d]/g, ''), 10);
+
+          const valorTexto = valorRaw
+            .replace(/\u00A0/g, ' ')
+            .trim();
+
+          const valorNumero = valorTexto
+            ? parseInt(valorTexto.replace(/[^\d]/g, ''), 10)
+            : null;
+
+          const temPreco = Number.isFinite(valorNumero);
+
+          const disabled = td.classList.contains('bui-calendar__date--disabled');
+
+          return {
+            data,
+            dia: Number.isFinite(dia) ? dia : null,
+            valor: temPreco ? valorNumero : null,
+            indisponivel: disabled || !temPreco
+          };
+        });
       }
-
-      const calendarios = Array.from(document.querySelectorAll('.bui-calendar'));
-      const calendarioVisivel = calendarios.find(elementoVisivel) || calendarios[0];
-
-      if (!calendarioVisivel) return [];
-
-      const tds = Array.from(
-        calendarioVisivel.querySelectorAll('td[data-bui-ref="calendar-date"][data-date]')
-      );
-
-      return tds.map((td) => {
-        const data = td.getAttribute('data-date') || null;
-
-        const diaRaw = td.querySelector('.calendar-day__number')?.textContent || '';
-        const valorRaw = td.querySelector('.calendar-day__price')?.textContent || '';
-
-        const dia = parseInt(diaRaw.replace(/[^\d]/g, ''), 10);
-
-        const valorTexto = valorRaw.replace(/\u00A0/g, ' ').trim();
-        const valorNumero = valorTexto
-          ? parseInt(valorTexto.replace(/[^\d]/g, ''), 10)
-          : null;
-
-        const temPreco = Number.isFinite(valorNumero);
-        const disabled = td.classList.contains('bui-calendar__date--disabled');
-
-        return {
-          data,
-          dia: Number.isFinite(dia) ? dia : null,
-          valor: temPreco ? valorNumero : null,
-          indisponivel: disabled || !temPreco
-        };
-      });
-    });
+    );
 
     if (debug) {
       console.log('Amostra calendario:', JSON.stringify(calendario.slice(0, 20), null, 2));

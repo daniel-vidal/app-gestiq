@@ -29,22 +29,39 @@ function resumirErro(err, limite = 2000) {
   return texto.length > limite ? texto.slice(0, limite) : texto;
 }
 
+function formatarDataPartes(ano, mes, dia) {
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+}
+
 function formatarDataISO(valor) {
   if (!valor) return null;
 
+  if (typeof valor === 'string') {
+    const texto = valor.trim();
+
+    const matchIsoCurta = texto.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (matchIsoCurta) {
+      return matchIsoCurta[1];
+    }
+  }
+
   if (valor instanceof Date) {
-    return valor.toISOString().slice(0, 10);
+    return formatarDataPartes(
+      valor.getFullYear(),
+      valor.getMonth() + 1,
+      valor.getDate()
+    );
   }
 
   const texto = String(valor).trim();
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
-    return texto;
-  }
-
   const dt = new Date(texto);
+
   if (!Number.isNaN(dt.getTime())) {
-    return dt.toISOString().slice(0, 10);
+    return formatarDataPartes(
+      dt.getFullYear(),
+      dt.getMonth() + 1,
+      dt.getDate()
+    );
   }
 
   return null;
@@ -206,6 +223,19 @@ async function executarTarefaScraping(tarefaId, opcoes = {}) {
         Array.isArray(resultadoCaptura?.calendario)
           ? resultadoCaptura.calendario.length
           : 0
+      );
+      console.log('[executor] meta captura:', resultadoCaptura?.meta || null);
+      console.log(
+        '[executor] primeira data calendário:',
+        Array.isArray(resultadoCaptura?.calendario) && resultadoCaptura.calendario.length
+          ? resultadoCaptura.calendario[0]
+          : null
+      );
+      console.log(
+        '[executor] última data calendário:',
+        Array.isArray(resultadoCaptura?.calendario) && resultadoCaptura.calendario.length
+          ? resultadoCaptura.calendario[resultadoCaptura.calendario.length - 1]
+          : null
       );
     }
 

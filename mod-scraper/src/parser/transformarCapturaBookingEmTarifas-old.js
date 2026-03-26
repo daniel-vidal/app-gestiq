@@ -1,41 +1,18 @@
 // src/parser/transformarCapturaBookingEmTarifas.js
 
-function parseDataIsoPartes(dataIso) {
-  if (!dataIso || !/^\d{4}-\d{2}-\d{2}$/.test(String(dataIso).trim())) {
-    return null;
-  }
-
-  const [ano, mes, dia] = String(dataIso).trim().split('-').map(Number);
-
-  if (
-    !Number.isInteger(ano) ||
-    !Number.isInteger(mes) ||
-    !Number.isInteger(dia)
-  ) {
-    return null;
-  }
-
-  return { ano, mes, dia };
-}
-
-function formatarDataPartes(ano, mes, dia) {
-  return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-}
-
 function somarDias(dataIso, dias) {
   if (!dataIso || !Number.isFinite(dias)) return null;
 
-  const partes = parseDataIsoPartes(dataIso);
-  if (!partes) return null;
+  const dt = new Date(`${dataIso}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return null;
 
-  const utc = Date.UTC(partes.ano, partes.mes - 1, partes.dia + dias);
-  const dt = new Date(utc);
+  dt.setDate(dt.getDate() + dias);
 
-  return formatarDataPartes(
-    dt.getUTCFullYear(),
-    dt.getUTCMonth() + 1,
-    dt.getUTCDate()
-  );
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+
+  return `${y}-${m}-${d}`;
 }
 
 function transformarCapturaBookingEmTarifas({ tarefa, resultadoCaptura }) {
