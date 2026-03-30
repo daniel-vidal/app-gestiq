@@ -1,6 +1,7 @@
 // node mod-scraper/iniciarModScraper.js
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const { iniciarLoopAgendador, pararLoopAgendador } = require('./src/agendamento/loopAgendador');
 const { iniciarWorkerLoop, pararWorkerLoop } = require('./src/tarefas/workerLoop');

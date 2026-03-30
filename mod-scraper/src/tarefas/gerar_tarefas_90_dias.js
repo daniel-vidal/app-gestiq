@@ -1,7 +1,10 @@
 // Criar tarefas de monitoramento mensal para os próximos 90 dias, considerando os hotéis ativos e suas prioridades.
-// Para rodar agora: `node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --debug`
-// Para rodar agendado para uma data futura: `node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --debug --agendada-para="2026-03-24 06:00:00"`
-// Para rodar para um hotel específico: `node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --hotel-id=1 --debug`
+// Exemplos:
+// node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --debug
+// node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --hotel-id=1 --debug
+// node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --hotel-id=1,2,3 --debug
+// node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --hotel-id=1 --hotel-id=2 --debug
+// node mod-scraper/src/tarefas/gerar_tarefas_90_dias.js --debug --agendada-para="2026-03-24 06:00:00"
 
 require('dotenv').config();
 
@@ -51,6 +54,32 @@ function obterArgumento(nome) {
   return arg ? arg.slice(prefixo.length) : null;
 }
 
+function obterArgumentos(nome) {
+  const prefixo = `${nome}=`;
+
+  return process.argv
+    .filter((item) => item.startsWith(prefixo))
+    .map((item) => item.slice(prefixo.length))
+    .filter(Boolean);
+}
+
+function obterListaHotelIds() {
+  const valores = obterArgumentos('--hotel-id');
+
+  if (!valores.length) {
+    return [];
+  }
+
+  const ids = valores
+    .flatMap((valor) => String(valor).split(','))
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item > 0);
+
+  return Array.from(new Set(ids));
+}
+
 function agoraNormalizadoParaMinuto() {
   const data = new Date();
   data.setSeconds(0, 0);
@@ -92,7 +121,7 @@ function construirConsultaMes(dataMes, dataBase, quantidadeNoites) {
   };
 }
 
-async function buscarHoteisAtivos(client, hotelId = null) {
+async function buscarHoteisAtivos(client, hotelIds = []) {
   let sql = `
     SELECT
       id,
@@ -107,9 +136,9 @@ async function buscarHoteisAtivos(client, hotelId = null) {
 
   const params = [];
 
-  if (hotelId) {
-    sql += ` AND id = $1`;
-    params.push(hotelId);
+  if (Array.isArray(hotelIds) && hotelIds.length > 0) {
+    sql += ` AND id = ANY($1::int[])`;
+    params.push(hotelIds);
   }
 
   sql += `
@@ -205,9 +234,10 @@ async function gerarTarefas90Dias(opcoes = {}) {
   const tipoColeta = opcoes.tipoColeta || 'calendario_mensal';
   const status = opcoes.status || 'pendente';
   const debug = Boolean(opcoes.debug);
+  const hotelIds = Array.isArray(opcoes.hotelIds) ? opcoes.hotelIds : [];
 
   try {
-    const hoteis = await buscarHoteisAtivos(client, opcoes.hotelId);
+    const hoteis = await buscarHoteisAtivos(client, hotelIds);
     const meses = obterMesesNoIntervalo(baseData, quantidadeDias);
 
     let totalTentadas = 0;
@@ -217,11 +247,11 @@ async function gerarTarefas90Dias(opcoes = {}) {
     const detalhes = [];
 
     if (debug) {
-      console.log('[gerador] hotéis ativos:', hoteis.length);
+      console.log('[gerador] hotéis ativos encontrados:', hoteis.length);
       console.log('[gerador] meses:', meses);
       console.log('[gerador] agendadaPara:', agendadaPara.toISOString());
       console.log('[gerador] dataBase:', formatarDataISO(baseData));
-      console.log('[gerador] hotelId filtro:', opcoes.hotelId || null);
+      console.log('[gerador] hotelIds filtro:', hotelIds.length ? hotelIds : null);
     }
 
     for (const hotel of hoteis) {
@@ -253,7 +283,7 @@ async function gerarTarefas90Dias(opcoes = {}) {
           agendada_para: agendadaPara,
           payload: {
             origem: 'gerar_tarefas_90_dias',
-            versao: 6,
+            versao: 7,
             hotel_nome: hotel.nome,
             hotel_base: Boolean(hotel.hotel_base),
             prioridade_hotel_original: prioridadeBase,
@@ -263,7 +293,8 @@ async function gerarTarefas90Dias(opcoes = {}) {
             criancas,
             quantidade_noites: quantidadeNoites,
             fonte,
-            agendada_para_normalizada: agendadaPara.toISOString()
+            agendada_para_normalizada: agendadaPara.toISOString(),
+            hotel_ids_filtro: hotelIds.length ? hotelIds : null
           }
         };
 
@@ -307,12 +338,13 @@ async function gerarTarefas90Dias(opcoes = {}) {
       ok: true,
       data_base: formatarDataISO(baseData),
       quantidade_dias: quantidadeDias,
+      hotel_ids_solicitados: hotelIds,
       hoteis_ativos: hoteis.length,
       meses_processados: meses.length,
       agendada_para: agendadaPara.toISOString(),
       total_tentadas: totalTentadas,
-      total_criadas: totalCriadas,
-      total_ignoradas: totalIgnoradas,
+      total_tarefas_geradas: totalCriadas,
+      total_tarefas_ignoradas: totalIgnoradas,
       detalhes: debug ? detalhes : undefined
     };
   } finally {
@@ -329,13 +361,12 @@ if (require.main === module) {
     const debug = process.argv.includes('--debug');
     const agendadaParaArg = obterArgumento('--agendada-para');
     const agendadaPara = normalizarAgendadaPara(agendadaParaArg);
-    const hotelIdArg = obterArgumento('--hotel-id');
-    const hotelId = hotelIdArg ? Number(hotelIdArg) : null;
+    const hotelIds = obterListaHotelIds();
 
     const resultado = await gerarTarefas90Dias({
       debug,
       agendadaPara,
-      hotelId
+      hotelIds
     });
 
     console.log(JSON.stringify(resultado, null, 2));
