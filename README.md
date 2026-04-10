@@ -70,3 +70,19 @@ Estrutura resumida (`mod-scraper/src`)
 Se quiser, eu posso:
 - gerar exemplos de queries para identificar rotinas inválidas de `hora_inicio`, ou
 - adicionar uma rotina de verificação que logue rotinas com `hora_inicio` em formato inválido.
+
+Posicionamento / Relatório CSV
+- `npm run posicionamento:csv` — gera um CSV com o posicionamento do `hotel_base` para uma data de `checkin` (padrão `2026-06-01`). O CSV é escrito em `mod-scraper/outputs/posicionamento_<YYYYMMDD>.csv` e contém: `hotel_id, nome, checkin, checkout, preco, posicao, hotel_base`.
+- `npm run posicionamento:test` — executa um teste rápido que calcula os indicadores do `hotel_base` (média, mediana, menor/maior preço, diferença absoluta e percentual em relação à média).
+
+Opções (passar como argumentos para `posicionamento:csv`):
+- `--checkin=YYYY-MM-DD` — data alvo (ex.: `--checkin=2026-06-01`).
+- `--fonte=<fonte>` — fonte de coleta (padrão: `booking_mobile`).
+- `--incluir-indisponiveis` — incluir tarifas marcadas como indisponíveis.
+
+Exemplo rápido:
+```bash
+npm run posicionamento:csv -- --checkin=2026-06-01 --fonte=booking_mobile
+```
+
+O script exige que exista exatamente um registro em `mod_scraper.hoteis_monitorados` com `hotel_base = true` (ativo); caso contrário, aborta com erro para garantir consistência da regra de negócio.

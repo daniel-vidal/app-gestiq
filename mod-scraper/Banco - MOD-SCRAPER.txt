@@ -1,0 +1,378 @@
+Segue abaixo estrutura atual criada na banco até o momento:
+
+CREATE TABLE mod_scraper.regioes (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(150) NOT NULL,
+    cidade VARCHAR(120) NOT NULL,
+    estado CHAR(2) NOT NULL,
+    tipo_regiao VARCHAR(50), -- bairro, litoral, ilha, orla, centro etc
+    ativa BOOLEAN NOT NULL DEFAULT TRUE,
+    criada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizada_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX ux_mod_scraper_regioes_nome_cidade_estado
+    ON mod_scraper.regioes (nome, cidade, estado);
+
+---------------------------------------------------
+
+CREATE TABLE mod_scraper.hoteis_monitorados (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(200) NOT NULL,
+    regiao_id INTEGER NOT NULL REFERENCES mod_scraper.regioes(id),
+    categoria_estrelas SMALLINT, -- 1 a 5
+    perfil_hotel VARCHAR(80), -- boutique, luxo, resort, pousada, economico etc
+    url_booking TEXT NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    prioridade_monitoramento SMALLINT NOT NULL DEFAULT 5, -- 1 maior prioridade
+    hotel_base BOOLEAN NOT NULL DEFAULT FALSE,
+    observacoes TEXT,
+    criada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizada_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX ux_mod_scraper_hoteis_url_booking
+    ON mod_scraper.hoteis_monitorados (url_booking);
+
+CREATE INDEX ix_mod_scraper_hoteis_regiao
+    ON mod_scraper.hoteis_monitorados (regiao_id);
+
+CREATE INDEX ix_mod_scraper_hoteis_ativo
+    ON mod_scraper.hoteis_monitorados (ativo);
+
+---------------------------------------------------
+
+CREATE TABLE mod_scraper.datas_monitoramento (
+    id SERIAL PRIMARY KEY,
+    data_alvo DATE NOT NULL,
+    tipo_monitoramento VARCHAR(50) NOT NULL, -- rotina_90_dias, feriado, evento, data_manual, data_critica
+    prioridade SMALLINT NOT NULL DEFAULT 5,
+    descricao VARCHAR(200),
+    ativa BOOLEAN NOT NULL DEFAULT TRUE,
+    criada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizada_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ix_mod_scraper_datas_monitoramento_data
+    ON mod_scraper.datas_monitoramento (data_alvo);
+
+CREATE INDEX ix_mod_scraper_datas_monitoramento_tipo
+    ON mod_scraper.datas_monitoramento (tipo_monitoramento);
+
+CREATE UNIQUE INDEX ux_mod_scraper_datas_monitoramento
+    ON mod_scraper.datas_monitoramento (data_alvo, tipo_monitoramento, COALESCE(descricao, ''));
+
+---------------------------------------------------
+
+CREATE TABLE mod_scraper.scraping_tarefas (
+ id BIGSERIAL PRIMARY KEY,
+ tipo_tarefa VARCHAR(50) NOT NULL,
+ tipo_coleta VARCHAR(50) NOT NULL DEFAULT 'calendario_mensal',
+ hotel_id INTEGER NOT NULL REFERENCES mod_scraper.hoteis_monitorados(id),
+ regiao_id INTEGER REFERENCES mod_scraper.regioes(id),
+ mes_referencia DATE NOT NULL,
+ checkin_consulta DATE NOT NULL,
+ checkout_consulta DATE NOT NULL,
+ adultos SMALLINT NOT NULL DEFAULT 2,
+ criancas SMALLINT NOT NULL DEFAULT 0,
+ quantidade_noites SMALLINT NOT NULL DEFAULT 1,
+ fonte VARCHAR(50) NOT NULL DEFAULT 'booking_mobile',
+ prioridade SMALLINT NOT NULL DEFAULT 5,
+ status VARCHAR(30) NOT NULL DEFAULT 'pendente',
+ tentativas SMALLINT NOT NULL DEFAULT 0,
+ max_tentativas SMALLINT NOT NULL DEFAULT 3,
+ agendada_para TIMESTAMP DEFAULT NOW(),
+ iniciada_em TIMESTAMP,
+ finalizada_em TIMESTAMP,
+ worker_nome VARCHAR(100),
+ payload JSONB,
+ erro_resumo TEXT,
+ criada_em TIMESTAMP DEFAULT NOW(),
+ atualizada_em TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX ix_mod_scraper_tarefas_worker_fila
+ON mod_scraper.scraping_tarefas (status, agendada_para, prioridade, mes_referencia);
+
+CREATE INDEX ix_mod_scraper_tarefas_hotel_mes
+ON mod_scraper.scraping_tarefas (hotel_id, mes_referencia);
+
+CREATE INDEX ix_mod_scraper_tarefas_regiao_mes
+ON mod_scraper.scraping_tarefas (regiao_id, mes_referencia);
+
+CREATE INDEX ix_mod_scraper_tarefas_status
+ON mod_scraper.scraping_tarefas (status);
+
+CREATE UNIQUE INDEX ux_mod_scraper_tarefas_unica_mensal
+ON mod_scraper.scraping_tarefas (
+ hotel_id,
+ mes_referencia,
+ adultos,
+ criancas,
+ quantidade_noites,
+ fonte,
+ agendada_para
+);
+
+---------------------------------------------------
+
+CREATE TABLE mod_scraper.tarifas_monitoradas (
+ id BIGSERIAL PRIMARY KEY,
+ hotel_id INTEGER NOT NULL REFERENCES mod_scraper.hoteis_monitorados(id),
+ regiao_id INTEGER REFERENCES mod_scraper.regioes(id),
+ tarefa_id BIGINT REFERENCES mod_scraper.scraping_tarefas(id),
+ mes_referencia DATE,
+ checkin DATE NOT NULL,
+ checkout DATE NOT NULL,
+ periodo_estadia SMALLINT NOT NULL DEFAULT 1,
+ menor_preco NUMERIC(12,2),
+ moeda VARCHAR(10) NOT NULL DEFAULT 'BRL',
+ disponivel BOOLEAN NOT NULL DEFAULT TRUE,
+ tipo_tarifa VARCHAR(50) NOT NULL DEFAULT 'menor_preco_calendario',
+ adultos SMALLINT NOT NULL DEFAULT 2,
+ criancas SMALLINT NOT NULL DEFAULT 0,
+ ocupacao_total SMALLINT NOT NULL DEFAULT 2,
+ data_primeira_consulta TIMESTAMP NOT NULL,
+ data_ultima_consulta TIMESTAMP NOT NULL,
+ fonte VARCHAR(50) NOT NULL DEFAULT 'booking_mobile',
+ url_coleta TEXT,
+ metadados JSONB,
+ criada_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX ix_mod_scraper_tarifas_hotel_checkin
+ON mod_scraper.tarifas_monitoradas (hotel_id, checkin);
+
+CREATE INDEX ix_mod_scraper_tarifas_regiao_checkin
+ON mod_scraper.tarifas_monitoradas (regiao_id, checkin);
+
+CREATE INDEX ix_mod_scraper_tarifas_mes_referencia
+ON mod_scraper.tarifas_monitoradas (mes_referencia);
+
+CREATE INDEX ix_mod_scraper_tarifas_tarefa_id
+ON mod_scraper.tarifas_monitoradas (tarefa_id);
+
+CREATE INDEX ix_mod_scraper_tarifas_primeira_consulta
+ON mod_scraper.tarifas_monitoradas (data_primeira_consulta);
+
+CREATE UNIQUE INDEX ux_mod_scraper_tarifas_unica
+ON mod_scraper.tarifas_monitoradas (
+ hotel_id,
+ checkin,
+ adultos,
+ criancas,
+ fonte,
+ data_primeira_consulta
+);
+
+CREATE INDEX ix_mod_scraper_tarifas_busca_vigente
+ON mod_scraper.tarifas_monitoradas (
+ hotel_id,
+ checkin,
+ checkout,
+ adultos,
+ criancas,
+ fonte,
+ data_ultima_consulta DESC
+);
+
+---------------------------------------------------
+
+CREATE TABLE mod_scraper.tarifas_atuais (
+    id BIGSERIAL PRIMARY KEY,
+    hotel_id INTEGER NOT NULL REFERENCES mod_scraper.hoteis_monitorados(id),
+    regiao_id INTEGER REFERENCES mod_scraper.regioes(id),
+    historico_id BIGINT NOT NULL REFERENCES mod_scraper.tarifas_monitoradas(id),
+    tarefa_id BIGINT REFERENCES mod_scraper.scraping_tarefas(id),
+    mes_referencia DATE,
+    checkin DATE NOT NULL,
+    checkout DATE NOT NULL,
+    periodo_estadia SMALLINT NOT NULL DEFAULT 1,
+    menor_preco NUMERIC(12,2),
+    moeda VARCHAR(10) NOT NULL DEFAULT 'BRL',
+    disponivel BOOLEAN NOT NULL DEFAULT TRUE,
+    tipo_tarifa VARCHAR(50) NOT NULL DEFAULT 'menor_preco_calendario',
+    adultos SMALLINT NOT NULL DEFAULT 2,
+    criancas SMALLINT NOT NULL DEFAULT 0,
+    ocupacao_total SMALLINT NOT NULL DEFAULT 2,
+    data_primeira_consulta TIMESTAMP NOT NULL,
+    data_ultima_consulta TIMESTAMP NOT NULL,
+    fonte VARCHAR(50) NOT NULL DEFAULT 'booking_mobile',
+    url_coleta TEXT,
+    metadados JSONB,
+    criada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizada_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX ux_mod_scraper_tarifas_atuais_chave
+ON mod_scraper.tarifas_atuais (
+    hotel_id,
+    checkin,
+    checkout,
+    adultos,
+    criancas,
+    fonte
+);
+
+CREATE INDEX ix_mod_scraper_tarifas_atuais_hotel_checkin
+ON mod_scraper.tarifas_atuais (hotel_id, checkin);
+
+CREATE INDEX ix_mod_scraper_tarifas_atuais_regiao_checkin
+ON mod_scraper.tarifas_atuais (regiao_id, checkin);
+
+CREATE INDEX ix_mod_scraper_tarifas_atuais_mes_referencia
+ON mod_scraper.tarifas_atuais (mes_referencia);
+
+CREATE INDEX ix_mod_scraper_tarifas_atuais_historico_id
+ON mod_scraper.tarifas_atuais (historico_id);
+
+
+---------------------------------------------------
+
+
+CREATE TABLE mod_scraper.hoteis_janela_venda (
+    id SERIAL PRIMARY KEY,
+
+    hotel_id INTEGER NOT NULL
+        REFERENCES mod_scraper.hoteis_monitorados(id),
+
+    -- 📊 resultado principal
+    meses_a_venda_estimado SMALLINT,
+    meses_a_venda_confirmado SMALLINT,
+
+    -- 📅 limites observados
+    primeiro_mes_com_preco DATE,
+    ultimo_mes_com_preco DATE,
+    primeiro_mes_sem_preco DATE,
+
+    -- 📉 comportamento
+    percentual_meses_com_preco NUMERIC(5,2), -- ex: 65.50 (%)
+    total_meses_analisados SMALLINT,
+
+    -- 🚨 status do hotel
+    aparenta_inativo_booking BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- 🔁 controle da análise
+    ultima_analise_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    proxima_reanalise_em TIMESTAMP,
+
+    -- 🧠 metadados livres
+    dados_resumo JSONB,
+
+    observacoes TEXT,
+
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizado_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- 🔐 1 linha por hotel
+CREATE UNIQUE INDEX ux_mod_scraper_hoteis_janela_venda_hotel
+ON mod_scraper.hoteis_janela_venda (hotel_id);
+
+-- 🔍 consultas rápidas
+CREATE INDEX ix_mod_scraper_hoteis_janela_venda_ultima_analise
+ON mod_scraper.hoteis_janela_venda (ultima_analise_em);
+
+CREATE INDEX ix_mod_scraper_hoteis_janela_venda_inativo
+ON mod_scraper.hoteis_janela_venda (aparenta_inativo_booking);
+
+
+---------------------------------------------------
+
+
+CREATE TABLE mod_scraper.configuracoes (
+    chave VARCHAR(100) PRIMARY KEY,
+    valor VARCHAR(500) NOT NULL,
+    descricao TEXT,
+    atualizado_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+
+---------------------------------------------------
+
+
+
+CREATE TABLE IF NOT EXISTS mod_scraper.rotinas_agendadas (
+id BIGSERIAL PRIMARY KEY,
+nome VARCHAR(150) NOT NULL,
+tipo_rotina VARCHAR(60) NOT NULL,
+ativo BOOLEAN NOT NULL DEFAULT TRUE,
+script_gerador VARCHAR(255) NOT NULL,
+parametros_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+frequencia_tipo VARCHAR(30) NOT NULL,
+frequencia_valor INTEGER NOT NULL DEFAULT 1,
+hora_inicio TIME NULL,
+hora_fim TIME NULL,
+dias_semana SMALLINT[] NULL,
+prioridade INTEGER NOT NULL DEFAULT 5,
+ultima_execucao_em TIMESTAMP NULL,
+proxima_execucao_em TIMESTAMP NULL,
+total_execucoes INTEGER NOT NULL DEFAULT 0,
+total_dias_execucao INTEGER NOT NULL DEFAULT 0,
+criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+atualizada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+CONSTRAINT ck_rotinas_agendadas_frequencia_tipo
+CHECK (frequencia_tipo IN ('minutos', 'horas', 'diaria', 'semanal', 'mensal')),
+CONSTRAINT ck_rotinas_agendadas_frequencia_valor
+CHECK (frequencia_valor > 0),
+CONSTRAINT ck_rotinas_agendadas_prioridade
+CHECK (prioridade >= 0)
+);
+
+
+CREATE INDEX IF NOT EXISTS ix_rotinas_agendadas_ativo_proxima
+    ON mod_scraper.rotinas_agendadas (ativo, proxima_execucao_em);
+
+CREATE INDEX IF NOT EXISTS ix_rotinas_agendadas_tipo
+    ON mod_scraper.rotinas_agendadas (tipo_rotina);
+
+
+---------------------------------------------------
+
+
+CREATE TABLE IF NOT EXISTS mod_scraper.rotinas_agendadas_execucoes (
+id BIGSERIAL PRIMARY KEY,
+rotina_id BIGINT NOT NULL REFERENCES mod_scraper.rotinas_agendadas(id) ON DELETE CASCADE,
+executada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+status VARCHAR(30) NOT NULL,
+mensagem TEXT NULL,
+tarefas_geradas INTEGER NOT NULL DEFAULT 0,
+duracao_ms BIGINT NULL,
+erro TEXT NULL,
+criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+CONSTRAINT ck_rotinas_agendadas_execucoes_status
+CHECK (status IN ('sucesso', 'erro', 'ignorada'))
+);
+
+
+CREATE INDEX IF NOT EXISTS ix_rotinas_agendadas_execucoes_rotina
+    ON mod_scraper.rotinas_agendadas_execucoes (rotina_id, executada_em DESC);
+
+
+---------------------------------------------------
+
+
+CREATE OR REPLACE FUNCTION mod_scraper.fn_set_atualizada_em()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.atualizada_em = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_rotinas_agendadas_set_atualizada_em
+ON mod_scraper.rotinas_agendadas;
+
+CREATE TRIGGER trg_rotinas_agendadas_set_atualizada_em
+BEFORE UPDATE ON mod_scraper.rotinas_agendadas
+FOR EACH ROW
+EXECUTE FUNCTION mod_scraper.fn_set_atualizada_em();
+
+
+
+
+
+
+
+
+

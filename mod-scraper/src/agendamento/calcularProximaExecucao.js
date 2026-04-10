@@ -182,9 +182,16 @@ function calcularBaseInicial(rotina, referencia) {
       base.setDate(base.getDate() + (7 * frequenciaValor));
       return rotina.hora_inicio ? aplicarHora(base, rotina.hora_inicio) : base;
 
-    case 'mensal':
-      base.setMonth(base.getMonth() + frequenciaValor);
+    case 'mensal': {
+      const diaFixo = Number((rotina.parametros_json || {}).dia_do_mes);
+      const diaAlvo = (diaFixo >= 1 && diaFixo <= 31) ? diaFixo : base.getDate();
+      const proximoMes = base.getMonth() + frequenciaValor;
+      base.setDate(1); // evita overflow ao mudar de mês
+      base.setMonth(proximoMes);
+      const diasNoMes = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+      base.setDate(Math.min(diaAlvo, diasNoMes));
       return rotina.hora_inicio ? aplicarHora(base, rotina.hora_inicio) : base;
+    }
 
     default:
       throw new Error(`frequencia_tipo inválido: ${frequenciaTipo}`);

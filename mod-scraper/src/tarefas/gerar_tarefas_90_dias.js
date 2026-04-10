@@ -362,11 +362,17 @@ if (require.main === module) {
     const agendadaParaArg = obterArgumento('--agendada-para');
     const agendadaPara = normalizarAgendadaPara(agendadaParaArg);
     const hotelIds = obterListaHotelIds();
+    const adultosArg = obterArgumento('--adultos');
+    const criancasArg = obterArgumento('--criancas');
+    const quantidadeNoitesArg = obterArgumento('--quantidade-noites');
 
     const resultado = await gerarTarefas90Dias({
       debug,
       agendadaPara,
-      hotelIds
+      hotelIds,
+      ...(adultosArg !== null ? { adultos: Number(adultosArg) } : {}),
+      ...(criancasArg !== null ? { criancas: Number(criancasArg) } : {}),
+      ...(quantidadeNoitesArg !== null ? { quantidadeNoites: Number(quantidadeNoitesArg) } : {})
     });
 
     console.log(JSON.stringify(resultado, null, 2));

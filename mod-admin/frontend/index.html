@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GestiQ Admin</title>
+  <link rel="stylesheet" href="/admin/css/style.css">
+</head>
+<body>
+
+  <!-- Login (visível quando não autenticado) -->
+  <div id="login-container" class="hidden"></div>
+
+  <!-- Layout admin (visível quando autenticado) -->
+  <div id="admin-layout" class="hidden">
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h1>GestiQ</h1>
+        <span class="sidebar-subtitle">Painel Admin</span>
+      </div>
+      <nav id="sidebar-nav">
+        <a href="#/regioes" data-page="regioes">Regiões</a>
+        <a href="#/hoteis" data-page="hoteis">Hotéis</a>
+        <a href="#/rotinas" data-page="rotinas">Rotinas</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="usuario-nome"></span>
+        <button id="btn-logout" type="button">Sair</button>
+      </div>
+    </aside>
+    <main id="app"></main>
+  </div>
+
+  <script type="module" src="/admin/js/app.js"></script>
+</body>
+</html>

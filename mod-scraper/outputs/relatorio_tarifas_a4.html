@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatório de Posicionamento de Tarifas</title>
+  <style>
+    :root {
+      --bg: #f3f6fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #dbe2ea;
+      --primary: #0f4c81;
+      --primary-2: #1d6fb8;
+      --good: #0f8a5f;
+      --warn: #b7791f;
+      --bad: #c0392b;
+      --soft-blue: #eef5ff;
+      --soft-green: #e9f8f2;
+      --soft-orange: #fff5e8;
+      --soft-red: #fdeeee;
+      --shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%);
+      color: var(--text);
+    }
+
+    .app {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .toolbar {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(219, 226, 234, 0.95);
+      box-shadow: var(--shadow);
+      border-radius: 22px;
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+      position: sticky;
+      top: 14px;
+      z-index: 10;
+      margin-bottom: 20px;
+    }
+
+    .toolbar-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 28px;
+      color: var(--primary);
+      letter-spacing: 0.2px;
+    }
+
+    .title-block p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.4px;
+    }
+
+    .field select,
+    .field input,
+    .btn {
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 0 12px;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .btn {
+      cursor: pointer;
+      font-weight: 700;
+      background: linear-gradient(180deg, #ffffff 0%, #f4f8fc 100%);
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+      box-shadow: 0 4px 14px rgba(15, 76, 129, 0.08);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: #bfd1e2;
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, var(--primary-2) 0%, var(--primary) 100%);
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--primary);
+      display: inline-block;
+    }
+
+    .report-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: var(--card);
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+      border-radius: 12px;
+      padding: 14mm 14mm 12mm;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sheet-topbar {
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 10mm;
+      background: linear-gradient(90deg, var(--primary) 0%, #247ac9 100%);
+    }
+
+    .report-header {
+      padding-top: 6mm;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 12mm;
+      align-items: end;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 7mm;
+    }
+
+    .report-header h2 {
+      margin: 0;
+      font-size: 24px;
+      color: #123b63;
+    }
+
+    .report-header .subtitle {
+      margin-top: 6px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .meta {
+      display: grid;
+      gap: 8px;
+      justify-self: end;
+      width: 100%;
+      max-width: 78mm;
+    }
+
+    .meta-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: linear-gradient(180deg, #fbfdff 0%, #f5f8fb 100%);
+    }
+
+    .meta-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      letter-spacing: .4px;
+    }
+
+    .meta-value {
+      margin-top: 3px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .section {
+      margin-top: 8mm;
+    }
+
+    .section-title {
+      margin: 0 0 4mm;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--primary);
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4mm;
+    }
+
+    .kpi {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 4mm;
+      background: #fff;
+      min-height: 28mm;
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      font-weight: 700;
+    }
+
+    .kpi-value {
+      margin-top: 2mm;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--text);
+    }
+
+    .kpi-note {
+      margin-top: 2mm;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .summary-box {
+      border-radius: 18px;
+      padding: 5mm;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #f9fcff 0%, #f3f8fc 100%);
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .summary-box strong {
+      color: #153d63;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.18fr 0.82fr;
+      gap: 5mm;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+    }
+
+    .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    thead th {
+      background: #eef5fb;
+      color: #19486f;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .35px;
+      padding: 10px 8px;
+      text-align: center;
+      border-bottom: 1px solid var(--line);
+    }
+
+    tbody td {
+      padding: 9px 8px;
+      border-bottom: 1px solid #edf1f5;
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    tbody td.num, tbody td.center {
+      text-align: center;
+    }
+
+    tbody td.right {
+      text-align: right;
+    }
+
+    tbody tr.base-row {
+      background: #eef7ff;
+      font-weight: 700;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 74px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 11px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .pill.good { background: var(--soft-green); color: var(--good); border-color: #cbeedc; }
+    .pill.warn { background: var(--soft-orange); color: var(--warn); border-color: #f4dfb5; }
+    .pill.bad  { background: var(--soft-red); color: var(--bad); border-color: #f3c9c5; }
+    .pill.info { background: var(--soft-blue); color: var(--primary); border-color: #d9e8fa; }
+
+    .recommendation-box {
+      border-radius: 18px;
+      padding: 5mm;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+    }
+
+    .recommendation-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 3mm;
+    }
+
+    .recommendation-head h3 {
+      margin: 0;
+      font-size: 17px;
+      color: #183e63;
+    }
+
+    .recommendation-text {
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--text);
+      margin: 0;
+    }
+
+    .recommendation-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3mm;
+      margin-top: 4mm;
+    }
+
+    .recommendation-item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 3mm;
+      background: #fff;
+    }
+
+    .recommendation-item .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      letter-spacing: .35px;
+    }
+
+    .recommendation-item .value {
+      margin-top: 2mm;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    .footer-note {
+      margin-top: 5mm;
+      padding-top: 3mm;
+      border-top: 1px solid var(--line);
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .empty-state {
+      border: 2px dashed #c9d7e6;
+      border-radius: 20px;
+      padding: 30px;
+      text-align: center;
+      color: var(--muted);
+      background: linear-gradient(180deg, #fcfdff 0%, #f6f9fc 100%);
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 1100px) {
+      .controls,
+      .two-col,
+      .report-header,
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .report-sheet {
+        width: auto;
+        min-height: auto;
+        padding: 24px;
+      }
+
+      .meta { max-width: none; justify-self: stretch; }
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .toolbar {
+        display: none !important;
+      }
+
+      .app {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .report-sheet {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <div class="toolbar-top">
+        <div class="title-block">
+          <h1>Relatório HTML de Posicionamento</h1>
+          <p>Abra arquivos CSV do módulo scraper, escolha o relatório na lista e imprima em formato A4 sem precisar abrir o Excel.</p>
+        </div>
+        <button class="btn btn-primary" onclick="window.print()">Imprimir / Salvar em PDF</button>
+      </div>
+
+      <div class="controls">
+        <div class="field">
+          <label>Selecionar pasta de CSVs</label>
+          <button class="btn" id="pickFolderBtn">Escolher pasta</button>
+          <input type="file" id="folderInput" webkitdirectory directory multiple accept=".csv,text/csv" class="hidden" />
+        </div>
+
+        <div class="field">
+          <label>Ou abrir CSV avulso</label>
+          <input type="file" id="fileInput" accept=".csv,text/csv" />
+        </div>
+
+        <div class="field">
+          <label>Relatórios encontrados</label>
+          <select id="fileSelect">
+            <option value="">Nenhum CSV carregado</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Ação</label>
+          <button class="btn" id="reloadBtn">Reprocessar relatório</button>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <span class="chip"><span class="dot"></span><span id="statusText">Pronto para carregar um CSV.</span></span>
+        <span id="currentFileChip" class="chip hidden"></span>
+      </div>
+    </div>
+
+    <div class="report-sheet" id="sheet">
+      <div class="sheet-topbar"></div>
+      <div id="emptyState" class="empty-state" style="margin-top: 18mm;">
+        <h2 style="margin-top:0;color:#163f66;">Nenhum relatório carregado</h2>
+        <p>Selecione uma pasta com seus CSVs do scraper ou abra um arquivo CSV avulso. O sistema monta automaticamente um relatório mais bonito, explicado e pronto para impressão em A4.</p>
+      </div>
+
+      <div id="reportContent" class="hidden">
+        <header class="report-header">
+          <div>
+            <h2>Relatório de Posicionamento de Tarifas</h2>
+            <div class="subtitle" id="executiveSummary"></div>
+          </div>
+          <div class="meta">
+            <div class="meta-card">
+              <div class="meta-label">Arquivo</div>
+              <div class="meta-value" id="metaFileName">-</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Período analisado</div>
+              <div class="meta-value" id="metaPeriod">-</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Hotel base</div>
+              <div class="meta-value" id="metaBaseHotel">-</div>
+            </div>
+          </div>
+        </header>
+
+        <section class="section">
+          <h3 class="section-title">Visão executiva</h3>
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="kpi-label">Preço do hotel base</div>
+              <div class="kpi-value" id="kpiBasePrice">-</div>
+              <div class="kpi-note" id="kpiBaseNote">-</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Preço médio do mercado</div>
+              <div class="kpi-value" id="kpiMean">-</div>
+              <div class="kpi-note" id="kpiMeanNote">-</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Faixa observada</div>
+              <div class="kpi-value" id="kpiRange">-</div>
+              <div class="kpi-note" id="kpiRangeNote">-</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Posição do hotel base</div>
+              <div class="kpi-value" id="kpiRank">-</div>
+              <div class="kpi-note" id="kpiRankNote">-</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section two-col">
+          <div>
+            <h3 class="section-title">Leitura do mercado</h3>
+            <div class="summary-box" id="marketRead"></div>
+          </div>
+          <div>
+            <h3 class="section-title">Recomendação</h3>
+            <div class="recommendation-box">
+              <div class="recommendation-head">
+                <h3 id="recommendationAction">-</h3>
+                <span class="pill info" id="recommendationBadge">-</span>
+              </div>
+              <p class="recommendation-text" id="recommendationText">-</p>
+              <div class="recommendation-grid">
+                <div class="recommendation-item">
+                  <div class="label">Ação sugerida</div>
+                  <div class="value" id="recActionValue">-</div>
+                </div>
+                <div class="recommendation-item">
+                  <div class="label">Faixa sugerida</div>
+                  <div class="value" id="recPercentValue">-</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h3 class="section-title">Ranking de preços</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:8%;">Pos.</th>
+                  <th style="width:34%; text-align:left;">Hotel</th>
+                  <th style="width:13%;">Preço</th>
+                  <th style="width:15%;">vs Base</th>
+                  <th style="width:15%;">vs Média</th>
+                  <th style="width:15%;">Leitura</th>
+                </tr>
+              </thead>
+              <tbody id="rankingBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section">
+          <h3 class="section-title">Resumo estatístico</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="text-align:left;">Indicador</th>
+                  <th>Valor</th>
+                  <th style="text-align:left;">Interpretação</th>
+                </tr>
+              </thead>
+              <tbody id="summaryBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="footer-note">
+          Relatório gerado localmente no navegador a partir de CSV do módulo scraper. Para trocar de arquivo, selecione outra pasta ou outro CSV no topo da página. A impressão foi otimizada para folha A4.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      files: [],
+      selectedIndex: -1,
+      data: null
+    };
+
+    const els = {
+      folderInput: document.getElementById('folderInput'),
+      fileInput: document.getElementById('fileInput'),
+      fileSelect: document.getElementById('fileSelect'),
+      pickFolderBtn: document.getElementById('pickFolderBtn'),
+      reloadBtn: document.getElementById('reloadBtn'),
+      statusText: document.getElementById('statusText'),
+      currentFileChip: document.getElementById('currentFileChip'),
+      emptyState: document.getElementById('emptyState'),
+      reportContent: document.getElementById('reportContent'),
+      metaFileName: document.getElementById('metaFileName'),
+      metaPeriod: document.getElementById('metaPeriod'),
+      metaBaseHotel: document.getElementById('metaBaseHotel'),
+      executiveSummary: document.getElementById('executiveSummary'),
+      kpiBasePrice: document.getElementById('kpiBasePrice'),
+      kpiBaseNote: document.getElementById('kpiBaseNote'),
+      kpiMean: document.getElementById('kpiMean'),
+      kpiMeanNote: document.getElementById('kpiMeanNote'),
+      kpiRange: document.getElementById('kpiRange'),
+      kpiRangeNote: document.getElementById('kpiRangeNote'),
+      kpiRank: document.getElementById('kpiRank'),
+      kpiRankNote: document.getElementById('kpiRankNote'),
+      marketRead: document.getElementById('marketRead'),
+      recommendationAction: document.getElementById('recommendationAction'),
+      recommendationBadge: document.getElementById('recommendationBadge'),
+      recommendationText: document.getElementById('recommendationText'),
+      recActionValue: document.getElementById('recActionValue'),
+      recPercentValue: document.getElementById('recPercentValue'),
+      rankingBody: document.getElementById('rankingBody'),
+      summaryBody: document.getElementById('summaryBody')
+    };
+
+    function setStatus(message) {
+      els.statusText.textContent = message;
+    }
+
+    function showFileChip(name) {
+      els.currentFileChip.classList.remove('hidden');
+      els.currentFileChip.textContent = name;
+    }
+
+    function hideFileChip() {
+      els.currentFileChip.classList.add('hidden');
+      els.currentFileChip.textContent = '';
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '-';
+      const [y, m, d] = iso.split('-');
+      if (!y || !m || !d) return iso;
+      return `${d}/${m}/${y}`;
+    }
+
+    function toNumberBRL(raw) {
+      if (raw == null) return NaN;
+      const text = String(raw).replace(/\s/g, '').replace('R$', '').replace(/\./g, '').replace(',', '.');
+      const clean = text.replace(/[^0-9+\-.]/g, '');
+      return Number(clean);
+    }
+
+    function toPercentNumber(raw) {
+      if (raw == null) return NaN;
+      const text = String(raw).replace(/\s/g, '').replace('%', '').replace(/\./g, '').replace(',', '.');
+      return Number(text);
+    }
+
+    function formatCurrency(n) {
+      if (!Number.isFinite(n)) return '-';
+      return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function safeText(v) {
+      return (v == null || v === '') ? '-' : String(v);
+    }
+
+    function parseDelimitedLine(line, delimiter) {
+      const out = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === delimiter && !inQuotes) {
+          out.push(current);
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+      out.push(current);
+      return out.map(v => v.trim());
+    }
+
+    function detectDelimiter(text) {
+      const sample = text.split(/\r?\n/).find(line => line.trim());
+      if (!sample) return ';';
+      const semi = (sample.match(/;/g) || []).length;
+      const comma = (sample.match(/,/g) || []).length;
+      return semi >= comma ? ';' : ',';
+    }
+
+    function parseCsvStructure(text) {
+      const delimiter = detectDelimiter(text);
+      const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+      const rows = lines
+        .map(line => line.trim())
+        .filter((line, index, arr) => !(line === '' && index === arr.length - 1))
+        .map(line => line === '' ? [] : parseDelimitedLine(line, delimiter));
+
+      if (!rows.length) throw new Error('CSV vazio.');
+
+      const header = rows[0].map(v => v.replace(/^"|"$/g, ''));
+      const blankIndex = rows.findIndex((row, idx) => idx > 0 && row.length === 0);
+      const mainRows = rows.slice(1, blankIndex === -1 ? rows.length : blankIndex);
+      const tailRows = blankIndex === -1 ? [] : rows.slice(blankIndex + 1).filter(r => r.length > 0);
+
+      const normalized = mainRows.map(cols => {
+        const obj = {};
+        header.forEach((h, i) => { obj[h] = (cols[i] || '').replace(/^"|"$/g, ''); });
+        return obj;
+      });
+
+      const summaryRows = normalized.filter(r => !r.hotel_id && (r.nome || r.preco));
+      const hotelRows = normalized.filter(r => r.hotel_id);
+
+      const recommendation = {};
+      tailRows.forEach((row, idx) => {
+        const a = (row[0] || '').replace(/^"|"$/g, '');
+        const b = (row[1] || '').replace(/^"|"$/g, '');
+        if (idx === 0 && a) recommendation.titulo = a;
+        else if (a) recommendation[a.toLowerCase()] = b;
+      });
+
+      return { header, summaryRows, hotelRows, recommendation };
+    }
+
+    function getSummaryValue(summaryRows, key) {
+      const row = summaryRows.find(r => (r.nome || '').trim().toUpperCase() === key.toUpperCase());
+      return row ? row.preco : '';
+    }
+
+    function getBaseRow(hotelRows) {
+      return hotelRows.find(r => String(r.hotel_base).toUpperCase() === 'TRUE') || hotelRows[0] || null;
+    }
+
+    function badgeClass(action) {
+      const value = (action || '').toLowerCase();
+      if (value.includes('subir')) return 'warn';
+      if (value.includes('descer')) return 'bad';
+      if (value.includes('manter')) return 'good';
+      return 'info';
+    }
+
+    function marketStatusPill(row) {
+      const value = String(row.status_media || '').toLowerCase();
+      if (value.includes('abaixo')) return ['Abaixo da média', 'good'];
+      if (value.includes('acima')) return ['Acima da média', 'warn'];
+      return [safeText(row.status_media), 'info'];
+    }
+
+    function buildNarrative(parsed) {
+      const base = getBaseRow(parsed.hotelRows);
+      const min = toNumberBRL(getSummaryValue(parsed.summaryRows, 'MENOR'));
+      const mean = toNumberBRL(getSummaryValue(parsed.summaryRows, 'MÉDIA'));
+      const median = toNumberBRL(getSummaryValue(parsed.summaryRows, 'MEDIANA'));
+      const max = toNumberBRL(getSummaryValue(parsed.summaryRows, 'MAIOR'));
+      const basePrice = toNumberBRL(base?.preco);
+      const diffMean = toNumberBRL(base?.diferenca_media);
+      const diffBasePct = toPercentNumber(base?.['%_base']);
+      const diffMeanPct = toPercentNumber(base?.['%_media']);
+      const spread = max - min;
+      const rank = Number(base?.posicao || 0);
+      const total = parsed.hotelRows.length;
+      const period = base ? `${formatDate(base.checkin)} a ${formatDate(base.checkout)}` : '-';
+      const recommendationAction = parsed.recommendation['ação'] || parsed.recommendation['acao'] || 'Manter';
+      const recommendationPercent = parsed.recommendation['percentual'] || '-';
+      const recommendationAnalysis = parsed.recommendation['análise'] || parsed.recommendation['analise'] || 'Sem análise textual no CSV.';
+
+      return {
+        base,
+        min,
+        mean,
+        median,
+        max,
+        basePrice,
+        diffMean,
+        diffBasePct,
+        diffMeanPct,
+        spread,
+        rank,
+        total,
+        period,
+        recommendationAction,
+        recommendationPercent,
+        recommendationAnalysis,
+        executiveSummary: `Análise do período <strong>${period}</strong>, comparando o hotel base com ${total - 1} concorrentes monitorados. Este relatório resume posição de preço, distância para a média do mercado e uma leitura prática para tomada de decisão rápida.`
+      };
+    }
+
+    function renderReport(parsed, fileName) {
+      const data = buildNarrative(parsed);
+      state.data = data;
+      els.emptyState.classList.add('hidden');
+      els.reportContent.classList.remove('hidden');
+
+      els.metaFileName.textContent = fileName || '-';
+      els.metaPeriod.textContent = data.period;
+      els.metaBaseHotel.textContent = safeText(data.base?.nome);
+      els.executiveSummary.innerHTML = data.executiveSummary;
+
+      els.kpiBasePrice.textContent = formatCurrency(data.basePrice);
+      els.kpiBaseNote.textContent = Number.isFinite(data.diffMeanPct)
+        ? `${data.diffMeanPct >= 0 ? 'Está' : 'Está'} ${Math.abs(data.diffMeanPct).toFixed(2).replace('.', ',')}% em relação à média do mercado.`
+        : 'Sem comparação válida com a média.';
+
+      els.kpiMean.textContent = formatCurrency(data.mean);
+      els.kpiMeanNote.textContent = `Mediana em ${formatCurrency(data.median)}.`;
+
+      els.kpiRange.textContent = `${formatCurrency(data.min)} - ${formatCurrency(data.max)}`;
+      els.kpiRangeNote.textContent = `Amplitude total de ${formatCurrency(data.spread)} entre o menor e o maior preço.`;
+
+      els.kpiRank.textContent = data.rank ? `${data.rank}º de ${data.total}` : '-';
+      els.kpiRankNote.textContent = data.rank === 1
+        ? 'O hotel base aparece como o menor preço do grupo analisado.'
+        : `Há ${data.rank - 1} tarifa(s) mais barata(s) do que o hotel base nesta consulta.`;
+
+      const rankStrength = data.rank === 1
+        ? 'na liderança de preço'
+        : data.rank <= Math.ceil(data.total / 2)
+          ? 'na metade mais competitiva'
+          : 'na metade mais cara do grupo';
+
+      const marketReadParts = [
+        `<strong>${safeText(data.base?.nome)}</strong> está ${rankStrength}, ocupando a <strong>${data.rank}ª posição</strong> entre ${data.total} hotéis monitorados.`,
+        Number.isFinite(data.basePrice) && Number.isFinite(data.mean)
+          ? `O preço atual do hotel base é <strong>${formatCurrency(data.basePrice)}</strong>, enquanto a média observada do mercado ficou em <strong>${formatCurrency(data.mean)}</strong>.`
+          : `Não foi possível calcular a comparação completa com a média.` ,
+        Number.isFinite(data.diffMean)
+          ? (data.diffMean < 0
+            ? `Isso coloca o hotel base <strong>${formatCurrency(Math.abs(data.diffMean))}</strong> abaixo da média, abrindo margem para eventual ajuste de tarifa se a estratégia for capturar mais receita sem perder competitividade.`
+            : `Isso coloca o hotel base <strong>${formatCurrency(Math.abs(data.diffMean))}</strong> acima da média, exigindo atenção à proposta de valor para sustentar o posicionamento.`)
+          : `Sem diferença válida contra a média neste arquivo.`,
+        `A faixa de mercado vai de <strong>${formatCurrency(data.min)}</strong> até <strong>${formatCurrency(data.max)}</strong>, com mediana de <strong>${formatCurrency(data.median)}</strong>.`
+      ];
+      els.marketRead.innerHTML = marketReadParts.join(' ');
+
+      const actionLabel = (data.recommendationAction || 'Manter').toUpperCase();
+      els.recommendationAction.textContent = `Sugestão: ${actionLabel}`;
+      els.recommendationBadge.textContent = data.recommendationPercent;
+      els.recommendationBadge.className = `pill ${badgeClass(data.recommendationAction)}`;
+      els.recommendationText.textContent = data.recommendationAnalysis;
+      els.recActionValue.textContent = safeText(data.recommendationAction);
+      els.recPercentValue.textContent = safeText(data.recommendationPercent);
+
+      els.rankingBody.innerHTML = parsed.hotelRows.map(row => {
+        const [label, cls] = marketStatusPill(row);
+        const isBase = String(row.hotel_base).toUpperCase() === 'TRUE';
+        return `
+          <tr class="${isBase ? 'base-row' : ''}">
+            <td class="center">${safeText(row.posicao)}</td>
+            <td>${safeText(row.nome)}</td>
+            <td class="right">${safeText(row.preco)}</td>
+            <td class="center">${safeText(row['%_base'])}</td>
+            <td class="center">${safeText(row['%_media'])}</td>
+            <td class="center"><span class="pill ${cls}">${label}</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      const summaryItems = [
+        { label: 'Menor tarifa', value: getSummaryValue(parsed.summaryRows, 'MENOR'), note: 'Referência inferior observada na amostra.' },
+        { label: 'Tarifa média', value: getSummaryValue(parsed.summaryRows, 'MÉDIA'), note: 'Centro de preço médio do grupo analisado.' },
+        { label: 'Tarifa mediana', value: getSummaryValue(parsed.summaryRows, 'MEDIANA'), note: 'Ponto intermediário da distribuição, útil para evitar distorções.' },
+        { label: 'Maior tarifa', value: getSummaryValue(parsed.summaryRows, 'MAIOR'), note: 'Referência superior observada na amostra.' },
+        { label: 'Preço do hotel base', value: safeText(data.base?.preco), note: 'Tarifa usada como referência principal da análise.' },
+        { label: 'Distância para a média', value: safeText(data.base?.diferenca_media), note: 'Quanto o hotel base está acima ou abaixo da média do mercado.' },
+        { label: 'Distância percentual para a média', value: safeText(data.base?.['%_media']), note: 'Leitura percentual do afastamento em relação à média.' },
+        { label: 'Distância para a base', value: safeText(data.base?.diferenca_base), note: 'No hotel base tende a ser zero; nos demais, mostra diferença absoluta contra ele.' }
+      ];
+
+      els.summaryBody.innerHTML = summaryItems.map(item => `
+        <tr>
+          <td>${item.label}</td>
+          <td class="center"><strong>${safeText(item.value)}</strong></td>
+          <td>${item.note}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadFile(file) {
+      const text = await file.text();
+      const parsed = parseCsvStructure(text);
+      renderReport(parsed, file.name);
+      setStatus(`Relatório carregado com sucesso: ${file.name}`);
+      showFileChip(file.name);
+    }
+
+    function sortFiles(files) {
+      return [...files].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+    }
+
+    function refreshSelect() {
+      els.fileSelect.innerHTML = '';
+      if (!state.files.length) {
+        els.fileSelect.innerHTML = '<option value="">Nenhum CSV carregado</option>';
+        return;
+      }
+      state.files.forEach((file, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = file.webkitRelativePath || file.name;
+        els.fileSelect.appendChild(option);
+      });
+    }
+
+    async function handleFiles(fileList) {
+      const files = sortFiles(Array.from(fileList).filter(file => file.name.toLowerCase().endsWith('.csv')));
+      if (!files.length) {
+        setStatus('Nenhum CSV encontrado na seleção atual.');
+        return;
+      }
+      state.files = files;
+      state.selectedIndex = 0;
+      refreshSelect();
+      els.fileSelect.value = '0';
+      await loadFile(state.files[0]);
+    }
+
+    els.pickFolderBtn.addEventListener('click', () => els.folderInput.click());
+
+    els.folderInput.addEventListener('change', async (event) => {
+      await handleFiles(event.target.files);
+    });
+
+    els.fileInput.addEventListener('change', async (event) => {
+      await handleFiles(event.target.files);
+    });
+
+    els.fileSelect.addEventListener('change', async (event) => {
+      const index = Number(event.target.value);
+      if (!Number.isInteger(index) || index < 0 || !state.files[index]) return;
+      state.selectedIndex = index;
+      await loadFile(state.files[index]);
+    });
+
+    els.reloadBtn.addEventListener('click', async () => {
+      if (state.selectedIndex >= 0 && state.files[state.selectedIndex]) {
+        await loadFile(state.files[state.selectedIndex]);
+      }
+    });
+
+    // tenta carregar automaticamente o CSV usado no desenvolvimento, quando servido junto do HTML
+    (async function tryAutoLoadExample() {
+      try {
+        const response = await fetch('./posicionamento_20260401.csv');
+        if (!response.ok) return;
+        const blob = await response.blob();
+        const file = new File([blob], 'posicionamento_20260401.csv', { type: 'text/csv' });
+        state.files = [file];
+        state.selectedIndex = 0;
+        refreshSelect();
+        els.fileSelect.value = '0';
+        await loadFile(file);
+      } catch (error) {
+        // sem problema se o navegador bloquear fetch local
+      }
+    })();
+  </script>
+</body>
+</html>
